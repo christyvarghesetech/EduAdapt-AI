@@ -128,29 +128,31 @@ Students can interact with the AI to ask questions and receive explanations rela
                      ┌────────────┐
                      │  Student   │
                      └────────────┘
-🛠️ Tech Stack
+## 🛠️ Tech Stack
 
-# Frontend
+### Frontend
 - React.js
 - HTML5
 - CSS3
 - JavaScript
 
-# Backend
+### Backend
 - Python
 - FastAPI
 
-# AI / LLM
+### AI / LLM
 - LLM API
 - Prompt Engineering
 - RAG
 
-##Agent Framework
+### Agent Framework
 - LangGraph
 
-# Tools / APIs
+### Tools / APIs
 - LLM API
 - REST APIs
 
+### Database
+- SQLite
 # Database
 - SQLite
