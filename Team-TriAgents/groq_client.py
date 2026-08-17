@@ -158,6 +158,11 @@ class CompletionsWrapper:
                     else:
                         wait_seconds = 5
                         print(f"[Groq Key Rotator] Rate limit hit. Sleeping default {wait_seconds}s...")
+                    
+                    # Fallback to lighter model to bypass heavy rate limits on subsequent retries
+                    if call_kwargs.get("model") == "groq/compound":
+                        print("[Groq Key Rotator] Falling back to lighter model 'groq/compound-mini' to bypass rate limit.")
+                        call_kwargs["model"] = "groq/compound-mini"
                 
                 # Rotate key if there are multiple keys
                 if len(api_keys) > 1:
