@@ -1,0 +1,1462 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>TriAgents - Tutor's Desk</title>
+    
+    <!-- React & ReactDOM CDN -->
+    <script src="https://unpkg.com/react@18/umd/react.production.min.js" crossorigin></script>
+    <script src="https://unpkg.com/react-dom@18/umd/react-dom.production.min.js" crossorigin></script>
+    
+    <!-- Babel Standalone CDN -->
+    <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
+
+    <style>
+        body {
+            margin: 0;
+            padding: 0;
+            background-color: #FFFFFF;
+            font-family: "Inter", system-ui, sans-serif;
+            color: #1C1C1A;
+        }
+        /* Custom scrollbar matching the minimal whiteboard aesthetic */
+        ::-webkit-scrollbar {
+            width: 8px;
+            height: 8px;
+        }
+        ::-webkit-scrollbar-track {
+            background: #F3F3EF;
+        }
+        ::-webkit-scrollbar-thumb {
+            background: #DEDED7;
+            border-radius: 4px;
+        }
+        ::-webkit-scrollbar-thumb:hover {
+            background: #8C8C84;
+        }
+    </style>
+</head>
+<body>
+    <div id="root"></div>
+
+    <script type="text/babel">
+        const { useState, useEffect } = React;
+
+        // ---- design tokens: whiteboard / marker ----
+        const C = {
+          bg: "#FFFFFF",
+          panel: "#FCFCFA",
+          panel2: "#F3F3EF",
+          line: "#DEDED7",
+          ink: "#1C1C1A",
+          faint: "#8C8C84",
+          blue: "#2952D9",   // marker blue
+          red: "#D6402C",    // marker red
+          amber: "#C97A1A",  // marker amber
+          green: "#15803d",  // marker green
+        };
+
+        const fontImport = `
+        @import url('https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@500;600;700&family=Inter:wght@400;500;600&family=IBM+Plex+Mono:wght@400;500;600&family=Caveat:wght@500;600&display=swap');
+        `;
+
+        const F = {
+          display: '"Space Grotesk", system-ui, sans-serif',
+          body: '"Inter", system-ui, sans-serif',
+          mono: '"IBM Plex Mono", ui-monospace, monospace',
+          hand: '"Caveat", cursive',
+        };
+
+        // ---- helper fetch API ----
+        async function fetchAPI(endpoint, options = {}) {
+            const res = await fetch(endpoint, options);
+            if (!res.ok) {
+                const err = await res.json().catch(() => ({}));
+                throw new Error(err.detail || `HTTP error ${res.status}`);
+            }
+            return res.json();
+        }
+
+        // ---- custom components & tags ----
+        function Tag({ children, tone = "ink" }) {
+          const color = C[tone] || C.ink;
+          return (
+            <span
+              style={{
+                display: "inline-flex",
+                alignItems: "center",
+                gap: 6,
+                fontFamily: F.mono,
+                fontSize: 11,
+                letterSpacing: "0.06em",
+                textTransform: "uppercase",
+                padding: "5px 11px",
+                borderRadius: 999,
+                color,
+                border: `1.5px solid ${color}`,
+                background: "#FFFFFF",
+              }}
+            >
+              {children}
+            </span>
+          );
+        }
+
+        function Card({ children, style, accent }) {
+          return (
+            <div
+              style={{
+                background: C.panel,
+                border: `1.5px solid ${accent || C.line}`,
+                borderRadius: 10,
+                padding: 20,
+                boxShadow: "0 1px 0 rgba(28,28,26,0.04)",
+                ...style,
+              }}
+            >
+              {children}
+            </div>
+          );
+        }
+
+        function CircledStat({ value, color }) {
+          return (
+            <span style={{ position: "relative", display: "inline-block", padding: "0 10px" }}>
+              <svg
+                viewBox="0 0 100 60"
+                style={{ position: "absolute", inset: 0, width: "100%", height: "100%", overflow: "visible" }}
+              >
+                <ellipse cx="50" cy="30" rx="48" ry="27" fill="none" stroke={color} strokeWidth="2.5" />
+              </svg>
+              <span style={{ position: "relative" }}>{value}</span>
+            </span>
+          );
+        }
+
+        function toneFor(m) {
+          if (m >= 0.7) return C.blue;
+          if (m >= 0.4) return C.amber;
+          return C.red;
+        }
+
+        // Custom Header element for whiteboard pages
+        function PageHeader({ eyebrow, title }) {
+          return (
+            <div style={{ display: "flex", flexDirection: "column", gap: 4, marginBottom: 28 }}>
+              <span style={{ fontFamily: F.mono, fontSize: 11, textTransform: "uppercase", letterSpacing: "0.12em", color: C.faint }}>{eyebrow}</span>
+              <h1 style={{ fontFamily: F.display, fontSize: 30, fontWeight: 700, margin: 0, letterSpacing: "-0.01em" }}>{title}</h1>
+            </div>
+          );
+        }
+
+        function MasteryMeter({ label, mastery }) {
+          const pct = Math.round(mastery * 100);
+          const color = toneFor(mastery);
+          return (
+            <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
+              <div style={{ display: "flex", justifyContent: "space-between", alignItems: "baseline" }}>
+                <span style={{ fontSize: 14, color: C.ink, fontWeight: 500 }}>{label}</span>
+                <span style={{ fontFamily: F.mono, fontSize: 12, color }}>{pct}%</span>
+              </div>
+              <div style={{ height: 7, width: "100%", background: C.panel2, borderRadius: 999, overflow: "hidden", border: `1px solid ${C.line}` }}>
+                <div style={{ height: "100%", width: `${pct}%`, background: color, borderRadius: 999, transition: "width .4s" }} />
+              </div>
+            </div>
+          );
+        }
+
+        const NAV = [
+          { key: "dashboard", label: "Dashboard" },
+          { key: "session", label: "Session" },
+          { key: "placement", label: "Placement" },
+          { key: "syllabus", label: "Syllabus" },
+          { key: "roadmap", label: "Roadmap" },
+        ];
+
+        const AGENTS = ["Diagnose", "Teach", "Quiz", "Evaluate"];
+
+        // ---- MAIN CONTAINER APP ----
+        function App() {
+          const [tab, setTab] = useState("dashboard");
+          const [studentId, setStudentId] = useState("");
+          const [learningStyle, setLearningStyle] = useState("worked_example");
+          const [isOnboarded, setIsOnboarded] = useState(false);
+          const [onboardingStep, setOnboardingStep] = useState(1);
+          const [toast, setToast] = useState(null);
+          
+          // Data states
+          const [dashboard, setDashboard] = useState(null);
+          const [syllabus, setSyllabus] = useState(null);
+          const [roadmap, setRoadmap] = useState([]);
+          const [errors, setErrors] = useState([]);
+          
+          // Intake Placement states
+          const [placementTest, setPlacementTest] = useState(null);
+          const [placementAnswers, setPlacementAnswers] = useState({});
+          const [placementResults, setPlacementResults] = useState(null);
+          const [placementLoading, setPlacementLoading] = useState(false);
+          
+          // Active Tutoring Session states
+          const [activeSession, setActiveSession] = useState(null);
+          const [chatHistory, setChatHistory] = useState([]);
+          const [chatAnswer, setChatAnswer] = useState("");
+          const [chatLoading, setChatLoading] = useState(false);
+          const [selectedError, setSelectedError] = useState("");
+          const [customTutoring, setCustomTutoring] = useState(false);
+          
+          // Custom manual fields
+          const [customTopic, setCustomTopic] = useState("");
+          const [customQuestion, setCustomQuestion] = useState("");
+          const [customWrongAnswer, setCustomWrongAnswer] = useState("");
+          const [customCorrectAnswer, setCustomCorrectAnswer] = useState("");
+
+          // Syllabus file input state
+          const [syllabusText, setSyllabusText] = useState("");
+          const [syllabusLoading, setSyllabusLoading] = useState(false);
+
+          const triggerToast = (msg) => {
+            setToast(msg);
+            setTimeout(() => setToast(null), 4000);
+          };
+
+          // On Load check for active student
+          useEffect(() => {
+            if (isOnboarded && studentId) {
+                loadDashboardData();
+                loadSyllabusData();
+                loadErrors();
+                loadLearningStyle();
+            }
+          }, [isOnboarded, studentId]);
+
+          // Fetch Learning Style preference
+          const loadLearningStyle = async () => {
+            try {
+                const res = await fetchAPI(`/student/${studentId}/learning_style`);
+                if (res.learning_style) setLearningStyle(res.learning_style);
+            } catch (e) {
+                console.error(e);
+            }
+          };
+
+          // Fetch student dashboard analytics
+          const loadDashboardData = async () => {
+            try {
+                const res = await fetchAPI(`/student/${studentId}/dashboard`);
+                setDashboard(res);
+            } catch (e) {
+                console.error("Dashboard fetch failed:", e);
+            }
+          };
+
+          // Fetch syllabus curriculum map
+          const loadSyllabusData = async () => {
+            try {
+                const res = await fetchAPI("/syllabus");
+                setSyllabus(res);
+            } catch (e) {
+                console.error("Syllabus fetch failed:", e);
+            }
+          };
+
+          // Fetch student diagnostic test errors list
+          const loadErrors = async () => {
+            try {
+                const res = await fetchAPI(`/student/${studentId}/errors`);
+                setErrors(res);
+                if (res.length > 0) {
+                    setSelectedError(JSON.stringify(res[0]));
+                } else {
+                    setSelectedError("");
+                }
+            } catch (e) {
+                console.error("Errors fetch failed:", e);
+            }
+          };
+
+          // Handle learning style change
+          const handleStyleChange = async (newStyle) => {
+            setLearningStyle(newStyle);
+            try {
+                await fetchAPI("/student/learning_style", {
+                    method: "POST",
+                    headers: { "Content-Type": "application/json" },
+                    body: JSON.stringify({ student_id: studentId, style: newStyle })
+                });
+                triggerToast(`Learning style updated to: ${newStyle}`);
+                loadDashboardData();
+            } catch (e) {
+                triggerToast("Failed to update style.");
+            }
+          };
+
+          // Seed Dev Data
+          const handleSeedData = async () => {
+            try {
+                const res = await fetchAPI(`/dev/seed?student_id=${studentId || "student_001"}`, { method: "POST" });
+                triggerToast(res.message || "Data seeded successfully!");
+                setIsOnboarded(true);
+                loadDashboardData();
+                loadErrors();
+            } catch (e) {
+                triggerToast("Seeding failed.");
+            }
+          };
+
+          // Reset database profile
+          const handleResetData = async () => {
+            if (!confirm("Are you sure you want to purge all records?")) return;
+            try {
+                const res = await fetchAPI(`/dev/reset?student_id=${studentId}`, { method: "POST" });
+                triggerToast(res.message || "Database reset successful!");
+                setIsOnboarded(false);
+                setOnboardingStep(1);
+                setStudentId("");
+                setDashboard(null);
+                setPlacementResults(null);
+            } catch (e) {
+                triggerToast("Reset failed.");
+            }
+          };
+
+          // Export markdown study guide
+          const handleExportGuide = async () => {
+            try {
+                const res = await fetchAPI(`/student/${studentId}/export_guide`, { method: "POST" });
+                triggerToast(`Guide saved to: ${res.filename}`);
+            } catch (e) {
+                triggerToast("Failed to export study guide.");
+            }
+          };
+
+          // Syllabus parser text submission
+          const handleParseSyllabus = async () => {
+            if (!syllabusText.trim()) {
+                triggerToast("Syllabus content is empty!");
+                return;
+            }
+            setSyllabusLoading(true);
+            try {
+                const res = await fetchAPI("/syllabus/from_text", {
+                    method: "POST",
+                    headers: { "Content-Type": "application/json" },
+                    body: JSON.stringify({ text: syllabusText })
+                });
+                triggerToast(`Extracted ${res.topics_extracted} course topics!`);
+                setSyllabus(res.graph);
+                setSyllabusText("");
+                if (!isOnboarded) {
+                    setOnboardingStep(3); // advance to placement test in onboarding
+                    generatePlacementTest();
+                }
+            } catch (e) {
+                triggerToast("Failed to parse syllabus.");
+            } finally {
+                setSyllabusLoading(false);
+            }
+          };
+
+          // Syllabus parser file upload
+          const handleSyllabusFileUpload = async (event) => {
+            const file = event.target.files[0];
+            if (!file) return;
+            setSyllabusLoading(true);
+            const formData = new FormData();
+            formData.append("file", file);
+            try {
+                const res = await fetchAPI("/syllabus/from_file", {
+                    method: "POST",
+                    body: formData
+                });
+                triggerToast(`Uploaded and extracted ${res.topics_extracted} topics!`);
+                setSyllabus(res.graph);
+                if (!isOnboarded) {
+                    setOnboardingStep(3);
+                    generatePlacementTest();
+                }
+            } catch (e) {
+                triggerToast("Failed to parse syllabus file.");
+            } finally {
+                setSyllabusLoading(false);
+            }
+          };
+
+          // Generate baseline placement test
+          const generatePlacementTest = async () => {
+            setPlacementLoading(true);
+            try {
+                const res = await fetchAPI(`/student/${studentId}/generate_placement`, { method: "POST" });
+                setPlacementTest(res);
+                const initialAnswers = {};
+                res.questions.forEach(q => {
+                    initialAnswers[q.question_id] = "";
+                });
+                setPlacementAnswers(initialAnswers);
+            } catch (e) {
+                triggerToast("Could not generate placement test.");
+            } finally {
+                setPlacementLoading(false);
+            }
+          };
+
+          // Submit placement answers for evaluation
+          const handleSubmitPlacement = async () => {
+            setPlacementLoading(true);
+            try {
+                const res = await fetchAPI(`/student/${studentId}/submit_placement`, {
+                    method: "POST",
+                    headers: { "Content-Type": "application/json" },
+                    body: JSON.stringify({
+                        test_id: placementTest.test_id,
+                        answers: placementAnswers
+                    })
+                });
+                setPlacementResults(res);
+                triggerToast("Placement test graded!");
+                if (!isOnboarded) {
+                    setOnboardingStep(4); // show complete screen
+                }
+            } catch (e) {
+                triggerToast("Evaluation failed. Proceeding with fallback details.");
+            } finally {
+                setPlacementLoading(false);
+            }
+          };
+
+          // Load roadmap schedule
+          const fetchRoadmap = async () => {
+            if (!dashboard || !dashboard.weakest_topics) return;
+            const masteryMap = {};
+            dashboard.weakest_topics.forEach(t => {
+                masteryMap[t.topic] = t.mastery;
+            });
+            try {
+                const res = await fetchAPI("/student/roadmap", {
+                    method: "POST",
+                    headers: { "Content-Type": "application/json" },
+                    body: JSON.stringify({
+                        student_id: studentId,
+                        mastery_map: masteryMap,
+                        days_remaining: 14
+                    })
+                });
+                setRoadmap(res.roadmap);
+            } catch (e) {
+                triggerToast("Failed to compile roadmap.");
+            }
+          };
+
+          useEffect(() => {
+            if (tab === "roadmap") {
+                fetchRoadmap();
+            }
+          }, [tab, dashboard]);
+
+          // Bypass / Login existing profile
+          const handleLogin = async () => {
+            if (!studentId.trim()) {
+                triggerToast("Please enter a student ID.");
+                return;
+            }
+            try {
+                const res = await fetchAPI(`/student/${studentId}/dashboard`);
+                if (res && res.weakest_topics && res.weakest_topics.length > 0) {
+                    setIsOnboarded(true);
+                    triggerToast(`Welcome back, ${studentId}!`);
+                } else {
+                    triggerToast("New profile detected. Complete onboarding first.");
+                    setOnboardingStep(2);
+                }
+            } catch (e) {
+                triggerToast("Profile does not exist. Starting onboarding setup.");
+                setOnboardingStep(2);
+            }
+          };
+
+          // Start Tutoring Session
+          const handleStartSession = async () => {
+            let payload = {
+                student_id: studentId,
+                topic_hint: ""
+            };
+
+            if (customTutoring) {
+                if (!customTopic || !customQuestion) {
+                    triggerToast("Topic and Question are required for custom tutoring.");
+                    return;
+                }
+                payload.topic_hint = customTopic;
+                payload.question = customQuestion;
+                payload.student_answer = customWrongAnswer || "I don't know.";
+                payload.correct_answer = customCorrectAnswer || "Review explanations.";
+            } else {
+                if (!selectedError) {
+                    triggerToast("No mistake selected. Choose one or write a custom prompt.");
+                    return;
+                }
+                const errObj = JSON.parse(selectedError);
+                payload.topic_hint = errObj.topic;
+                payload.question = errObj.meta.question;
+                payload.student_answer = errObj.meta.student_answer;
+                payload.correct_answer = errObj.meta.correct_answer;
+            }
+
+            setChatLoading(true);
+            try {
+                const res = await fetchAPI("/session/start", {
+                    method: "POST",
+                    headers: { "Content-Type": "application/json" },
+                    body: JSON.stringify(payload)
+                });
+                setActiveSession(res);
+                
+                const initialHistory = [];
+                if (res.diagnosis) {
+                    initialHistory.push({
+                        sender: "Diagnostic Agent",
+                        tone: "blue",
+                        title: `DIAGNOSIS [Classified: ${res.diagnosis.error_classification}]`,
+                        content: res.diagnosis.reasoning
+                    });
+                }
+                if (res.teach) {
+                    initialHistory.push({
+                        sender: "Tutor Agent",
+                        tone: "blue",
+                        title: `TEACHING MODALITY [Used: ${res.teach.method_used.replace("_", " ")}]`,
+                        content: res.teach.explanation
+                    });
+                }
+                if (res.quiz && res.quiz.questions && res.quiz.questions.length > 0) {
+                    initialHistory.push({
+                        sender: "Assessment Agent",
+                        tone: "amber",
+                        title: `CFU PRACTICE QUIZ [Difficulty: ${res.quiz.questions[0].difficulty}]`,
+                        content: res.quiz.questions[0].question_text
+                    });
+                }
+                setChatHistory(initialHistory);
+                setChatAnswer("");
+            } catch (e) {
+                triggerToast("Failed to initialize tutoring agents session.");
+            } finally {
+                setChatLoading(false);
+            }
+          };
+
+          // Submit answer inside the tutoring dialogue session
+          const handleSubmitAnswer = async () => {
+            if (!chatAnswer.trim()) {
+                triggerToast("Enter your answer response.");
+                return;
+            }
+            setChatLoading(true);
+            try {
+                const res = await fetchAPI("/session/submit_answer", {
+                    method: "POST",
+                    headers: { "Content-Type": "application/json" },
+                    body: JSON.stringify({
+                        session_id: activeSession.session_id,
+                        student_response: chatAnswer
+                    })
+                });
+
+                const updated = [...chatHistory, {
+                    sender: "Student",
+                    tone: "ink",
+                    title: "Student Answer",
+                    content: chatAnswer
+                }];
+
+                if (res.eval_result) {
+                    const isCorrect = res.eval_result.is_correct;
+                    updated.push({
+                        sender: "Evaluator Agent",
+                        tone: isCorrect ? "green" : "red",
+                        title: `EVALUATION RESULT [Score: ${res.eval_result.score}]`,
+                        content: `${res.eval_result.feedback} (Mastery delta: ${res.eval_result.mastery_delta})`
+                    });
+                }
+
+                if (res.state === "DONE") {
+                    updated.push({
+                        sender: "System",
+                        tone: "green",
+                        title: "Session Completed",
+                        content: "Excellent! The learning gap has been resolved successfully."
+                    });
+                    setActiveSession(null);
+                    loadDashboardData();
+                } else if (res.state === "REPLAN") {
+                    updated.push({
+                        sender: "Planner Agent",
+                        tone: "red",
+                        title: "REPLAN INTERVENTION",
+                        content: `Tutoring paused. The system identified persistent blockages and has scheduled a spaced review. A comprehensive study guide has been compiled and saved to disk.`
+                    });
+                    setActiveSession(null);
+                    loadDashboardData();
+                } else {
+                    if (res.teach) {
+                        updated.push({
+                            sender: "Tutor Agent",
+                            tone: "blue",
+                            title: `TEACHING MODALITY [Used: ${res.teach.method_used.replace("_", " ")}]`,
+                            content: res.teach.explanation
+                        });
+                    }
+                    if (res.quiz && res.quiz.questions && res.quiz.questions.length > 0) {
+                        updated.push({
+                            sender: "Assessment Agent",
+                            tone: "amber",
+                            title: `CFU PRACTICE QUIZ [Difficulty: ${res.quiz.questions[0].difficulty}]`,
+                            content: res.quiz.questions[0].question_text
+                        });
+                    }
+                    setActiveSession(res);
+                }
+
+                setChatHistory(updated);
+                setChatAnswer("");
+            } catch (e) {
+                triggerToast("Submission error.");
+            } finally {
+                setChatLoading(false);
+            }
+          };
+
+          // agent progress track render
+          function AgentTrack({ activeIndex }) {
+            return (
+              <div style={{ display: "flex", alignItems: "center", padding: "6px 2px 14px" }}>
+                {AGENTS.map((a, i) => {
+                  const done = i < activeIndex;
+                  const active = i === activeIndex;
+                  const color = done || active ? C.blue : C.faint;
+                  return (
+                    <React.Fragment key={a}>
+                      <div style={{ display: "flex", flexDirection: "column", alignItems: "center", gap: 6 }}>
+                        <span
+                          style={{
+                            fontFamily: F.display,
+                            fontWeight: 600,
+                            fontSize: 13,
+                            color: active ? "#FFFFFF" : color,
+                            background: active ? C.blue : "transparent",
+                            padding: active ? "3px 10px" : "3px 2px",
+                            borderRadius: 999,
+                            border: active ? "none" : `1.5px dashed ${done ? C.blue : C.line}`,
+                          }}
+                        >
+                          {a}
+                        </span>
+                      </div>
+                      {i < AGENTS.length - 1 && (
+                        <div style={{ flex: 1, height: 2, minWidth: 16, margin: "0 6px", background: done ? C.blue : C.line, borderRadius: 2 }} />
+                      )}
+                    </React.Fragment>
+                  );
+                })}
+              </div>
+            );
+          }
+
+          return (
+            <div style={{ minHeight: "100vh", background: C.bg, color: C.ink, fontFamily: F.body }}>
+              <style>{fontImport}</style>
+
+              {/* Toast banner */}
+              {toast && (
+                <div style={{
+                    position: "fixed",
+                    bottom: 24,
+                    right: 24,
+                    background: C.panel,
+                    border: `2px solid ${C.ink}`,
+                    boxShadow: "4px 4px 0px rgba(0,0,0,0.8)",
+                    padding: "12px 20px",
+                    borderRadius: 6,
+                    fontFamily: F.mono,
+                    fontSize: 13,
+                    zIndex: 9999,
+                }}>
+                    ✒️ {toast}
+                </div>
+              )}
+
+              {/* Header Navigation */}
+              <header style={{ borderBottom: `2.5px solid ${C.ink}`, background: C.bg }}>
+                <div style={{ maxWidth: 980, margin: "0 auto", padding: "18px 20px", display: "flex", flexWrap: "wrap", gap: 12, alignItems: "center", justifyItems: "center", justifyContent: "space-between" }}>
+                  <div style={{ display: "flex", alignItems: "baseline", gap: 10 }}>
+                    <span style={{ fontFamily: F.display, fontSize: 22, fontWeight: 700, letterSpacing: "-0.02em" }}>TriAgents</span>
+                    <span style={{ fontFamily: F.hand, fontSize: 19, color: C.blue, transform: "rotate(-2deg)", display: "inline-block" }}>
+                      tutor's desk
+                    </span>
+                  </div>
+
+                  {isOnboarded && (
+                    <nav style={{ display: "flex", flexWrap: "wrap", gap: 4, fontFamily: F.mono, fontSize: 12, textTransform: "uppercase", letterSpacing: "0.04em" }}>
+                      {NAV.map((n) => (
+                        <button
+                          key={n.key}
+                          onClick={() => setTab(n.key)}
+                          style={{
+                            padding: "6px 12px",
+                            borderRadius: 999,
+                            border: `1.5px solid ${tab === n.key ? C.ink : "transparent"}`,
+                            background: tab === n.key ? C.ink : "transparent",
+                            color: tab === n.key ? "#FFFFFF" : C.faint,
+                            cursor: "pointer",
+                            fontFamily: F.mono,
+                          }}
+                        >
+                          {n.label}
+                        </button>
+                      ))}
+                    </nav>
+                  )}
+
+                  <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+                    <label style={{ fontFamily: F.mono, fontSize: 10, letterSpacing: "0.1em", textTransform: "uppercase", color: C.faint }}>
+                      Student ID
+                    </label>
+                    <input
+                      value={studentId}
+                      onChange={(e) => setStudentId(e.target.value.trim())}
+                      placeholder="Enter Name..."
+                      disabled={isOnboarded}
+                      style={{ background: C.panel2, border: `1px solid ${C.line}`, borderRadius: 6, padding: "6px 10px", fontSize: 13, fontFamily: F.mono, color: C.ink, width: 120 }}
+                    />
+                    {isOnboarded && (
+                        <button 
+                            onClick={handleResetData}
+                            style={{ padding: "4px 8px", background: "transparent", border: `1px solid ${C.red}`, borderRadius: 6, color: C.red, fontSize: 11, fontFamily: F.mono, cursor: "pointer" }}
+                        >
+                            Log Out
+                        </button>
+                    )}
+                  </div>
+                </div>
+              </header>
+
+              {/* Main Content Area */}
+              <main style={{ maxWidth: 980, margin: "0 auto", padding: "36px 20px" }}>
+                {!isOnboarded ? (
+                    /* Onboarding modal layout wizard */
+                    <div style={{ maxWidth: 640, margin: "20px auto" }}>
+                        <Card accent={C.ink} style={{ borderSize: "3px" }}>
+                            {onboardingStep === 1 && (
+                                <div style={{ display: "flex", flexDirection: "column", gap: 20 }}>
+                                    <PageHeader eyebrow="STEP 1 OF 4" title="Setup Learning Profile" />
+                                    <p style={{ fontSize: 14, color: C.faint }}>Welcome! TriAgents acts as an autonomous tutor by parsing course syllabi and resolving target concept gaps dynamically.</p>
+                                    
+                                    <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
+                                        <label style={{ fontFamily: F.mono, fontSize: 11, color: C.faint, textTransform: "uppercase" }}>Your Username / Student ID</label>
+                                        <input 
+                                            value={studentId}
+                                            onChange={e => setStudentId(e.target.value.trim())}
+                                            placeholder="Enter your student ID..."
+                                            style={{ padding: "12px 14px", border: `1.5px solid ${C.line}`, borderRadius: 8, fontSize: 14, fontFamily: F.mono, background: C.bg }}
+                                        />
+                                    </div>
+
+                                    <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
+                                        <label style={{ fontFamily: F.mono, fontSize: 11, color: C.faint, textTransform: "uppercase" }}>Preferred Explanation Style</label>
+                                        <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 10 }}>
+                                            {[
+                                                { id: "worked_example", title: "Worked Example", desc: "Step-by-step solved formulas" },
+                                                { id: "analogy", title: "Analogy", desc: "Real-world visual metaphors" },
+                                                { id: "visual", title: "Visual Model", desc: "Structured diagrams & sketches" },
+                                                { id: "socratic", title: "Socratic Method", desc: "Guided inquiry dialogue" }
+                                            ].map(opt => (
+                                                <div 
+                                                    key={opt.id}
+                                                    onClick={() => setLearningStyle(opt.id)}
+                                                    style={{
+                                                        border: `1.5px solid ${learningStyle === opt.id ? C.blue : C.line}`,
+                                                        background: learningStyle === opt.id ? "#F3F7FF" : C.panel,
+                                                        padding: 12,
+                                                        borderRadius: 8,
+                                                        cursor: "pointer",
+                                                        transition: "border 0.2s"
+                                                    }}
+                                                >
+                                                    <div style={{ fontWeight: 600, fontSize: 14, color: learningStyle === opt.id ? C.blue : C.ink }}>{opt.title}</div>
+                                                    <div style={{ fontSize: 11, color: C.faint, marginTop: 2 }}>{opt.desc}</div>
+                                                </div>
+                                            ))}
+                                        </div>
+                                    </div>
+
+                                    <div style={{ display: "flex", gap: 12, marginTop: 10 }}>
+                                        <button 
+                                            onClick={handleLogin} 
+                                            style={btnStyle(C.amber)}
+                                        >
+                                            Returning Student? Load Profile
+                                        </button>
+                                        <button 
+                                            onClick={() => {
+                                                if (!studentId) {
+                                                    triggerToast("Please input a student ID first!");
+                                                    return;
+                                                }
+                                                setOnboardingStep(2);
+                                            }} 
+                                            style={{ ...btnStyle(C.blue), flex: 1 }}
+                                        >
+                                            Next: Ingest Syllabus ➔
+                                        </button>
+                                    </div>
+                                    <div style={{ borderTop: `1.5px dashed ${C.line}`, paddingTop: 14, textAlign: "center" }}>
+                                        <button onClick={handleSeedData} style={{ background: "none", border: "none", color: C.blue, fontFamily: F.hand, fontSize: 18, cursor: "pointer" }}>
+                                            ⚡ Bypass & Load demo profile with stats
+                                        </button>
+                                    </div>
+                                </div>
+                            )}
+
+                            {onboardingStep === 2 && (
+                                <div style={{ display: "flex", flexDirection: "column", gap: 20 }}>
+                                    <PageHeader eyebrow="STEP 2 OF 4" title="Ingest Course Syllabus" />
+                                    <p style={{ fontSize: 14, color: C.faint }}>The Parser Agent reads course syllabus records to map topic links and prerequisite nodes dynamically.</p>
+                                    
+                                    <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
+                                        <label style={{ fontFamily: F.mono, fontSize: 11, color: C.faint, textTransform: "uppercase" }}>Paste Syllabus Plain-Text</label>
+                                        <textarea 
+                                            value={syllabusText}
+                                            onChange={e => setSyllabusText(e.target.value)}
+                                            placeholder="Paste course contents, module definitions or outlines here..."
+                                            rows={8}
+                                            style={{ padding: 14, border: `1.5px solid ${C.line}`, borderRadius: 8, fontSize: 13, fontFamily: F.body, background: C.bg }}
+                                        />
+                                    </div>
+
+                                    <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
+                                        <button 
+                                            onClick={handleParseSyllabus}
+                                            disabled={syllabusLoading}
+                                            style={{ ...btnStyle(C.blue), flex: 1 }}
+                                        >
+                                            {syllabusLoading ? "Parsing Syllabus..." : "Parse Syllabus Text ➔"}
+                                        </button>
+                                        <span style={{ fontFamily: F.mono, fontSize: 11, color: C.faint }}>OR</span>
+                                        <div style={{ position: "relative" }}>
+                                            <input 
+                                                type="file" 
+                                                accept=".txt,.md"
+                                                id="onboard-file-upload" 
+                                                onChange={handleSyllabusFileUpload}
+                                                style={{ display: "none" }}
+                                            />
+                                            <label 
+                                                htmlFor="onboard-file-upload" 
+                                                style={{ ...btnStyle(C.amber), display: "inline-block" }}
+                                            >
+                                                Upload .txt/.md File
+                                            </label>
+                                        </div>
+                                    </div>
+
+                                    <div style={{ display: "flex", justifyContent: "space-between", marginTop: 10 }}>
+                                        <button onClick={() => setOnboardingStep(1)} style={btnStyle(C.faint)}>Back</button>
+                                    </div>
+                                </div>
+                            )}
+
+                            {onboardingStep === 3 && (
+                                <div style={{ display: "flex", flexDirection: "column", gap: 20 }}>
+                                    <PageHeader eyebrow="STEP 3 OF 4" title="Diagnostic Placement Test" />
+                                    <p style={{ fontSize: 14, color: C.faint }}>Solve these 10 baseline questions generated from your syllabus topics to compute initial masteries.</p>
+                                    
+                                    {placementLoading ? (
+                                        <div style={{ textAlign: "center", padding: "40px 0", fontFamily: F.hand, fontSize: 24, color: C.blue }}>
+                                            Evaluating baseline tests... Please wait
+                                        </div>
+                                    ) : (
+                                        <div style={{ display: "flex", flexDirection: "column", gap: 14, maxHeight: 400, overflowY: "auto", paddingRight: 10 }}>
+                                            {placementTest && placementTest.questions.map((q, idx) => (
+                                                <Card key={q.question_id}>
+                                                    <div style={{ display: "flex", justifyContent: "space-between", marginBottom: 6 }}>
+                                                        <span style={{ fontFamily: F.mono, fontSize: 11, color: C.blue, fontWeight: 700 }}>QUESTION {idx + 1} of 10</span>
+                                                        <Tag tone="amber">{q.topic.replace(/_/g, " ")}</Tag>
+                                                    </div>
+                                                    <div style={{ fontSize: 14, fontWeight: 500, marginBottom: 8 }}>{q.question_text}</div>
+                                                    <input 
+                                                        value={placementAnswers[q.question_id] || ""}
+                                                        onChange={e => {
+                                                            const newAns = { ...placementAnswers };
+                                                            newAns[q.question_id] = e.target.value;
+                                                            setPlacementAnswers(newAns);
+                                                        }}
+                                                        placeholder="Your answer response..."
+                                                        style={{ width: "100%", padding: 10, border: `1px solid ${C.line}`, borderRadius: 6, fontSize: 13, background: C.bg, boxSizing: "border-box" }}
+                                                    />
+                                                </Card>
+                                            ))}
+                                        </div>
+                                    )}
+
+                                    {!placementLoading && (
+                                        <div style={{ display: "flex", justifyContent: "space-between", marginTop: 10 }}>
+                                            <button onClick={() => setOnboardingStep(2)} style={btnStyle(C.faint)}>Back</button>
+                                            <button onClick={handleSubmitPlacement} style={btnStyle(C.blue)}>Grade Answers & Complete ➔</button>
+                                        </div>
+                                    )}
+                                </div>
+                            )}
+
+                            {onboardingStep === 4 && (
+                                <div style={{ display: "flex", flexDirection: "column", gap: 20 }}>
+                                    <PageHeader eyebrow="STEP 4 OF 4" title="Evaluation & Gaps Identified" />
+                                    
+                                    {placementResults && (
+                                        <div style={{ display: "flex", flexDirection: "column", gap: 16 }}>
+                                            <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+                                                <div>
+                                                    <div style={{ fontFamily: F.display, fontSize: 44, fontWeight: 700 }}>
+                                                        <CircledStat value={`${placementResults.score_percentage}%`} color={placementResults.score_percentage >= 70 ? C.blue : C.red} />
+                                                    </div>
+                                                    <p style={{ fontSize: 14, color: C.faint, margin: "8px 0 0" }}>
+                                                        Graded: {placementResults.correct_answers} of {placementResults.total_questions} correct
+                                                    </p>
+                                                </div>
+                                                <Tag tone={placementResults.score_percentage >= 70 ? "blue" : "red"}>
+                                                    {placementResults.score_percentage >= 70 ? "Mastery Passed" : "Needs Tutoring"}
+                                                </Tag>
+                                            </div>
+
+                                            <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
+                                                <label style={{ fontFamily: F.mono, fontSize: 11, color: C.faint, textTransform: "uppercase" }}>Concept Gaps Summary</label>
+                                                <div style={{ display: "flex", flexDirection: "column", gap: 8, maxHeight: 200, overflowY: "auto" }}>
+                                                    {placementResults.results.map((res, idx) => (
+                                                        <div 
+                                                            key={idx}
+                                                            style={{ 
+                                                                display: "flex", 
+                                                                justifyContent: "space-between", 
+                                                                alignItems: "center", 
+                                                                padding: "10px 14px", 
+                                                                background: res.is_correct ? "#F4FDF4" : "#FDF4F4",
+                                                                border: `1.5px solid ${res.is_correct ? C.green : C.red}`,
+                                                                borderRadius: 8,
+                                                                fontSize: 13
+                                                            }}
+                                                        >
+                                                            <span style={{ fontWeight: 600 }}>{res.topic.replace(/_/g, " ")}</span>
+                                                            <span style={{ color: res.is_correct ? C.green : C.red, fontFamily: F.mono, fontWeight: 700 }}>
+                                                                {res.is_correct ? "MASTERED" : "GAP DETECTED"}
+                                                            </span>
+                                                        </div>
+                                                    ))}
+                                                </div>
+                                            </div>
+                                        </div>
+                                    )}
+
+                                    <button 
+                                        onClick={() => {
+                                            setIsOnboarded(true);
+                                            setTab("dashboard");
+                                        }} 
+                                        style={btnStyle(C.blue)}
+                                    >
+                                        Enter Student Dashboard ➔
+                                    </button>
+                                </div>
+                            )}
+                        </Card>
+                    </div>
+                ) : (
+                    /* Dashboard & Tutoring Workspace Panels */
+                    <div>
+                        {tab === "dashboard" && dashboard && (
+                            <div style={{ display: "flex", flexDirection: "column", gap: 28 }}>
+                              <PageHeader eyebrow={`TUTOR'S DESK — ACTIVE PROFILE: ${studentId}`} title="Mastery Dashboard" />
+
+                              <div style={{ display: "grid", gridTemplateColumns: "1fr 2fr", gap: 16 }}>
+                                <Card>
+                                  <span style={{ fontFamily: F.mono, fontSize: 10, textTransform: "uppercase", letterSpacing: "0.12em", color: C.faint }}>
+                                    Average mastery
+                                  </span>
+                                  <div style={{ fontFamily: F.display, fontSize: 44, fontWeight: 700, marginTop: 10 }}>
+                                    <CircledStat value={`${Math.round(dashboard.average_mastery * 100)}%`} color={toneFor(dashboard.average_mastery)} />
+                                  </div>
+                                  <span style={{ fontSize: 12, color: C.faint, display: "block", marginTop: 6 }}>Decay-corrected aggregate.</span>
+                                </Card>
+
+                                <Card style={{ display: "flex", flexDirection: "column", justifyContent: "space-between" }}>
+                                  <div>
+                                      <span style={{ fontFamily: F.mono, fontSize: 10, textTransform: "uppercase", letterSpacing: "0.12em", color: C.faint, display: "block", marginBottom: 6 }}>
+                                        Explanation preference style
+                                      </span>
+                                      <select 
+                                        value={learningStyle}
+                                        onChange={(e) => handleStyleChange(e.target.value)}
+                                        style={{ width: "100%", padding: 10, border: `1.5px solid ${C.line}`, borderRadius: 6, fontFamily: F.mono, fontSize: 13, background: C.bg }}
+                                      >
+                                        <option value="worked_example">Worked Example</option>
+                                        <option value="analogy">Analogy Metaphor</option>
+                                        <option value="visual">Visual Description</option>
+                                        <option value="socratic">Socratic Guidance</option>
+                                      </select>
+                                  </div>
+                                  <div style={{ marginTop: 14, display: "flex", gap: 8, flexWrap: "wrap" }}>
+                                    <button onClick={handleSeedData} style={{ background: "none", border: "none", padding: 0, cursor: "pointer" }}>
+                                        <Tag tone="blue">⚡ Seed Dev Data</Tag>
+                                    </button>
+                                    <button onClick={handleResetData} style={{ background: "none", border: "none", padding: 0, cursor: "pointer" }}>
+                                        <Tag tone="red">🧹 Reset Profile</Tag>
+                                    </button>
+                                    <button onClick={handleExportGuide} style={{ background: "none", border: "none", padding: 0, cursor: "pointer" }}>
+                                        <Tag tone="amber">💾 Export Study Guide</Tag>
+                                    </button>
+                                  </div>
+                                </Card>
+                              </div>
+
+                              <section>
+                                <h2 style={{ fontFamily: F.display, fontSize: 19, fontWeight: 600, marginBottom: 12 }}>Weakest concepts</h2>
+                                <Card style={{ display: "flex", flexDirection: "column", gap: 18 }}>
+                                  {dashboard.weakest_topics && dashboard.weakest_topics.length > 0 ? (
+                                    dashboard.weakest_topics.map((t) => (
+                                        <MasteryMeter key={t.topic} label={t.topic.replace(/_/g, " ")} mastery={t.mastery} />
+                                    ))
+                                  ) : (
+                                    <div style={{ color: C.faint, fontSize: 14, fontFamily: F.hand, textAlign: "center" }}>No weaknesses found! All concepts mastered.</div>
+                                  )}
+                                </Card>
+                              </section>
+
+                              <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 16 }}>
+                                <Card>
+                                  <h2 style={{ fontFamily: F.display, fontSize: 16, fontWeight: 600, marginTop: 0 }}>Error breakdown</h2>
+                                  {dashboard.error_breakdown && Object.keys(dashboard.error_breakdown).length > 0 ? (
+                                    Object.entries(dashboard.error_breakdown).map(([type, count]) => (
+                                        <div key={type} style={{ display: "flex", justifyContent: "space-between", fontSize: 14, marginTop: 8 }}>
+                                          <span style={{ textTransform: "capitalize", fontWeight: 500 }}>{type}</span>
+                                          <span style={{ fontFamily: F.mono, color: C.faint }}>{count} occurrences</span>
+                                        </div>
+                                    ))
+                                  ) : (
+                                    <span style={{ fontSize: 13, color: C.faint }}>No error records logged.</span>
+                                  )}
+                                </Card>
+                                <Card>
+                                  <h2 style={{ fontFamily: F.display, fontSize: 16, fontWeight: 600, marginTop: 0 }}>Method effectiveness</h2>
+                                  {dashboard.method_effectiveness && dashboard.method_effectiveness.length > 0 ? (
+                                    dashboard.method_effectiveness.map((m) => (
+                                        <div key={m.method} style={{ display: "flex", justifyContent: "space-between", fontSize: 14, marginTop: 8 }}>
+                                          <span style={{ textTransform: "capitalize", fontWeight: 500 }}>{m.method.replace("_", " ")}</span>
+                                          <span style={{ fontFamily: F.mono, color: C.blue }}>{Math.round(m.avg_score * 100)}% avg score</span>
+                                        </div>
+                                    ))
+                                  ) : (
+                                    <span style={{ fontSize: 13, color: C.faint }}>No teaching effectiveness history.</span>
+                                  )}
+                                </Card>
+                              </div>
+                            </div>
+                        )}
+
+                        {tab === "session" && (
+                            <div style={{ display: "flex", flexDirection: "column", gap: 22 }}>
+                              <PageHeader eyebrow="ACTIVE TUTORING DIALOGUE WORKSPACE" title="Tutoring Session" />
+
+                              {!activeSession ? (
+                                <Card style={{ display: "flex", flexDirection: "column", gap: 16 }}>
+                                  <h2 style={{ fontFamily: F.display, fontSize: 18, fontWeight: 600, margin: 0 }}>Launch Tutoring Session</h2>
+                                  
+                                  {/* Mode selector: mistake selector vs manual fields */}
+                                  <div style={{ display: "flex", gap: 8, alignItems: "center" }}>
+                                    <input 
+                                        type="checkbox" 
+                                        id="mode-toggle"
+                                        checked={customTutoring}
+                                        onChange={e => setCustomTutoring(e.target.checked)}
+                                    />
+                                    <label htmlFor="mode-toggle" style={{ fontSize: 13, fontWeight: 500, cursor: "pointer" }}>
+                                        ✏️ Start a custom manual tutoring session
+                                    </label>
+                                  </div>
+
+                                  {!customTutoring ? (
+                                      /* Mistake selector cards */
+                                      <div style={{ display: "flex", flexDirection: "column", gap: 14 }}>
+                                          <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
+                                              <label style={{ fontFamily: F.mono, fontSize: 11, color: C.faint, textTransform: "uppercase" }}>Select a Diagnostic Placement Mistake</label>
+                                              {errors.length > 0 ? (
+                                                  <select 
+                                                    value={selectedError}
+                                                    onChange={e => setSelectedError(e.target.value)}
+                                                    style={{ width: "100%", padding: 10, border: `1.5px solid ${C.line}`, borderRadius: 6, fontSize: 13, background: C.bg }}
+                                                  >
+                                                    {errors.map((err, idx) => (
+                                                        <option key={idx} value={JSON.stringify(err)}>
+                                                            [{err.topic.toUpperCase()}] - Question: "{err.meta.question.substring(0, 50)}..."
+                                                        </option>
+                                                    ))}
+                                                  </select>
+                                              ) : (
+                                                  <div style={{ padding: "10px 14px", border: `1.5px solid ${C.line}`, borderRadius: 6, fontSize: 13, color: C.faint, background: C.panel2 }}>
+                                                      No test errors found. You scored 100% or haven't taken the placement test! Toggle custom session below.
+                                                  </div>
+                                              )}
+                                          </div>
+
+                                          {selectedError && (() => {
+                                              const errObj = JSON.parse(selectedError);
+                                              return (
+                                                  <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
+                                                      <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 12 }}>
+                                                          <Card style={{ padding: 12 }}>
+                                                              <span style={{ fontFamily: F.mono, fontSize: 9, color: C.red, textTransform: "uppercase", display: "block" }}>Your Incorrect Answer</span>
+                                                              <div style={{ fontSize: 13, fontWeight: 500, marginTop: 4 }}>"{errObj.meta.student_answer}"</div>
+                                                          </Card>
+                                                          <Card style={{ padding: 12 }}>
+                                                              <span style={{ fontFamily: F.mono, fontSize: 9, color: C.green, textTransform: "uppercase", display: "block" }}>Expected Correct Answer</span>
+                                                              <div style={{ fontSize: 13, fontWeight: 500, marginTop: 4 }}>"{errObj.meta.correct_answer}"</div>
+                                                          </Card>
+                                                      </div>
+                                                  </div>
+                                              );
+                                          })()}
+                                      </div>
+                                  ) : (
+                                      /* Manual inputs cards */
+                                      <div style={{ display: "flex", flexDirection: "column", gap: 12 }}>
+                                          <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 12 }}>
+                                              <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
+                                                  <label style={{ fontFamily: F.mono, fontSize: 10, color: C.faint }}>TOPIC / CONCEPT ID</label>
+                                                  <input 
+                                                    value={customTopic}
+                                                    onChange={e => setCustomTopic(e.target.value)}
+                                                    placeholder="e.g. tcp_handshake"
+                                                    style={{ padding: 8, border: `1.5px solid ${C.line}`, borderRadius: 6, fontSize: 13, background: C.bg }}
+                                                  />
+                                              </div>
+                                              <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
+                                                  <label style={{ fontFamily: F.mono, fontSize: 10, color: C.faint }}>QUESTION</label>
+                                                  <input 
+                                                    value={customQuestion}
+                                                    onChange={e => setCustomQuestion(e.target.value)}
+                                                    placeholder="e.g. How does a client initiate TCP connection?"
+                                                    style={{ padding: 8, border: `1.5px solid ${C.line}`, borderRadius: 6, fontSize: 13, background: C.bg }}
+                                                  />
+                                              </div>
+                                          </div>
+                                          <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 12 }}>
+                                              <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
+                                                  <label style={{ fontFamily: F.mono, fontSize: 10, color: C.faint }}>STUDENT'S WRONG ANSWER</label>
+                                                  <input 
+                                                    value={customWrongAnswer}
+                                                    onChange={e => setCustomWrongAnswer(e.target.value)}
+                                                    placeholder="Student's incorrect response..."
+                                                    style={{ padding: 8, border: `1.5px solid ${C.line}`, borderRadius: 6, fontSize: 13, background: C.bg }}
+                                                  />
+                                              </div>
+                                              <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
+                                                  <label style={{ fontFamily: F.mono, fontSize: 10, color: C.faint }}>EXPECTED CORRECT ANSWER</label>
+                                                  <input 
+                                                    value={customCorrectAnswer}
+                                                    onChange={e => setCustomCorrectAnswer(e.target.value)}
+                                                    placeholder="Reference answer rubric..."
+                                                    style={{ padding: 8, border: `1.5px solid ${C.line}`, borderRadius: 6, fontSize: 13, background: C.bg }}
+                                                  />
+                                              </div>
+                                          </div>
+                                      </div>
+                                  )}
+
+                                  <button 
+                                    onClick={handleStartSession} 
+                                    disabled={chatLoading}
+                                    style={{ ...btnStyle(C.blue), alignSelf: "flex-start" }}
+                                  >
+                                    {chatLoading ? "Engaging Tutor Agents..." : "Start Tutoring Session"}
+                                  </button>
+                                </Card>
+                              ) : (
+                                /* Dialogue Active Chat UI */
+                                <>
+                                  <AgentTrack activeIndex={3} />
+
+                                  <div style={{ display: "flex", flexDirection: "column", gap: 14, maxHeight: 500, overflowY: "auto", paddingRight: 8 }}>
+                                    {chatHistory.map((msg, i) => (
+                                        <Card key={i} accent={C[msg.tone]}>
+                                            <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 6 }}>
+                                                <span style={{ fontFamily: F.mono, fontSize: 11, color: C[msg.tone], fontWeight: 700, textTransform: "uppercase" }}>{msg.sender}</span>
+                                                <span style={{ fontFamily: F.mono, fontSize: 10, color: C.faint }}>{msg.title}</span>
+                                            </div>
+                                            <div style={{ fontSize: 13.5, whiteSpace: "pre-line" }}>{msg.content}</div>
+                                        </Card>
+                                    ))}
+                                  </div>
+
+                                  {chatLoading ? (
+                                    <div style={{ textAlign: "center", padding: 14, fontFamily: F.hand, fontSize: 20, color: C.blue }}>
+                                        Agents processing... updating blackboard
+                                    </div>
+                                  ) : (
+                                    <Card>
+                                      <h3 style={{ fontFamily: F.display, fontSize: 15, fontWeight: 600, marginTop: 0, marginBottom: 8 }}>Your Reply Response</h3>
+                                      <textarea
+                                        value={chatAnswer}
+                                        onChange={(e) => setChatAnswer(e.target.value)}
+                                        placeholder="Type your explanation or math steps..."
+                                        rows={3}
+                                        style={{ display: "block", width: "100%", background: "#FFFFFF", border: `1.5px solid ${C.line}`, borderRadius: 6, padding: "10px 12px", fontSize: 13, color: C.ink, fontFamily: F.body, boxSizing: "border-box", marginBottom: 12 }}
+                                      />
+                                      <div style={{ display: "flex", gap: 10 }}>
+                                          <button onClick={handleSubmitAnswer} style={btnStyle(C.blue)}>
+                                            Submit Answer to Evaluator
+                                          </button>
+                                          <button 
+                                            onClick={() => {
+                                                setActiveSession(null);
+                                                setChatHistory([]);
+                                            }} 
+                                            style={btnStyle(C.faint)}
+                                          >
+                                            Cancel Session
+                                          </button>
+                                      </div>
+                                    </Card>
+                                  )}
+                                </>
+                              )}
+                            </div>
+                        )}
+
+                        {tab === "placement" && (
+                            <div style={{ display: "flex", flexDirection: "column", gap: 22 }}>
+                              <PageHeader eyebrow="DIAGNOSTIC PLACEMENT TESTING CENTER" title="Placement Evaluation" />
+                              
+                              {!placementResults ? (
+                                <div style={{ display: "flex", flexDirection: "column", gap: 14 }}>
+                                    <button 
+                                        onClick={generatePlacementTest} 
+                                        disabled={placementLoading}
+                                        style={{ ...btnStyle(C.blue), alignSelf: "flex-start" }}
+                                    >
+                                        {placementLoading ? "Designing baseline..." : "Generate Fresh Placement Test"}
+                                    </button>
+
+                                    {placementTest && (
+                                        <div style={{ display: "flex", flexDirection: "column", gap: 14 }}>
+                                            {placementTest.questions.map((q, idx) => (
+                                                <Card key={q.question_id}>
+                                                    <div style={{ display: "flex", justifyContent: "space-between", marginBottom: 6 }}>
+                                                        <span style={{ fontFamily: F.mono, fontSize: 11, color: C.blue, fontWeight: 700 }}>QUESTION {idx + 1} of 10</span>
+                                                        <Tag tone="amber">{q.topic.replace(/_/g, " ")}</Tag>
+                                                    </div>
+                                                    <div style={{ fontSize: 14, fontWeight: 500, marginBottom: 8 }}>{q.question_text}</div>
+                                                    <input 
+                                                        value={placementAnswers[q.question_id] || ""}
+                                                        onChange={e => {
+                                                            const newAns = { ...placementAnswers };
+                                                            newAns[q.question_id] = e.target.value;
+                                                            setPlacementAnswers(newAns);
+                                                        }}
+                                                        placeholder="Your answer response..."
+                                                        style={{ width: "100%", padding: 10, border: `1px solid ${C.line}`, borderRadius: 6, fontSize: 13, background: C.bg, boxSizing: "border-box" }}
+                                                    />
+                                                </Card>
+                                            ))}
+                                            <button onClick={handleSubmitPlacement} style={{ ...btnStyle(C.blue), alignSelf: "flex-start" }}>Submit Placement Answers</button>
+                                        </div>
+                                    )}
+                                </div>
+                              ) : (
+                                <div style={{ display: "flex", flexDirection: "column", gap: 14 }}>
+                                    <Card style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+                                        <div>
+                                          <div style={{ fontFamily: F.display, fontSize: 44, fontWeight: 700 }}>
+                                            <CircledStat value={`${placementResults.score_percentage}%`} color={placementResults.score_percentage >= 70 ? C.blue : C.red} />
+                                          </div>
+                                          <p style={{ fontSize: 13, color: C.faint, margin: "6px 0 0" }}>{placementResults.correct_answers} of 10 correct</p>
+                                        </div>
+                                        <button 
+                                            onClick={() => {
+                                                setPlacementResults(null);
+                                                setPlacementTest(null);
+                                            }}
+                                            style={btnStyle(C.amber)}
+                                        >
+                                            Retake Placement Test
+                                        </button>
+                                    </Card>
+
+                                    {placementResults.results.map((res, i) => (
+                                      <Card 
+                                        key={i} 
+                                        accent={res.is_correct ? C.green : C.red} 
+                                        style={{ padding: "12px 16px", display: "flex", justifyContent: "space-between", alignItems: "center" }}
+                                      >
+                                        <div>
+                                            <div style={{ fontWeight: 600, fontSize: 13.5 }}>{res.topic.replace(/_/g, " ").toUpperCase()}</div>
+                                            <div style={{ fontSize: 11, color: C.faint, marginTop: 2 }}>{res.feedback}</div>
+                                        </div>
+                                        
+                                        {!res.is_correct ? (
+                                            <button 
+                                                onClick={() => {
+                                                    // Trigger direct tutor redirect
+                                                    setTab("session");
+                                                    setCustomTutoring(true);
+                                                    setCustomTopic(res.topic);
+                                                    setCustomQuestion("Direct diagnostic session based on placement test error.");
+                                                    setCustomWrongAnswer("I missed this topic during placement.");
+                                                    setCustomCorrectAnswer("Conceptual diagnostic evaluation.");
+                                                    triggerToast(`Loaded ${res.topic} tutoring workspace details. Click start session!`);
+                                                }}
+                                                style={{ ...btnStyle(C.red), fontSize: 10, padding: "4px 10px" }}
+                                            >
+                                                Start Tutoring
+                                            </button>
+                                        ) : (
+                                            <span style={{ color: C.green, fontSize: 12, fontFamily: F.mono, fontWeight: 700 }}>MASTERED</span>
+                                        )}
+                                      </Card>
+                                    ))}
+                                </div>
+                              )}
+                            </div>
+                        )}
+
+                        {tab === "syllabus" && (
+                            <div style={{ display: "flex", flexDirection: "column", gap: 22 }}>
+                              <PageHeader eyebrow="CURRICULUM TOPICS GRAPH" title="Syllabus" />
+                              <Card>
+                                <h2 style={{ fontFamily: F.display, fontSize: 16, fontWeight: 600, marginTop: 0, marginBottom: 8 }}>Ingest Syllabus</h2>
+                                <textarea
+                                  value={syllabusText}
+                                  onChange={(e) => setSyllabusText(e.target.value)}
+                                  placeholder="Paste syllabus, textbook index outline, or exam curriculum specifications here..."
+                                  rows={5}
+                                  style={{ width: "100%", padding: 12, border: `1.5px solid ${C.line}`, borderRadius: 6, fontSize: 13, background: C.bg, fontFamily: F.body, boxSizing: "border-box", marginBottom: 12 }}
+                                />
+                                <div style={{ display: "flex", gap: 10, alignItems: "center" }}>
+                                  <button onClick={handleParseSyllabus} disabled={syllabusLoading} style={btnStyle(C.blue)}>
+                                    {syllabusLoading ? "Parsing..." : "Parse Syllabus Text"}
+                                  </button>
+                                  <span style={{ fontSize: 12, color: C.faint, fontFamily: F.mono }}>OR</span>
+                                  <div>
+                                    <input 
+                                        type="file" 
+                                        accept=".txt,.md"
+                                        id="syllabus-file-upload-tab" 
+                                        onChange={handleSyllabusFileUpload}
+                                        style={{ display: "none" }}
+                                    />
+                                    <label 
+                                        htmlFor="syllabus-file-upload-tab" 
+                                        style={{ ...btnStyle(C.amber), cursor: "pointer" }}
+                                    >
+                                        {syllabusLoading ? "Uploading..." : "Upload .txt / .md"}
+                                    </label>
+                                  </div>
+                                </div>
+                              </Card>
+
+                              {syllabus ? (
+                                Object.entries(syllabus).reduce((acc, [topicId, data]) => {
+                                    const unit = data.unit || "General Topics";
+                                    if (!acc[unit]) acc[unit] = [];
+                                    acc[unit].push({ id: topicId, ...data });
+                                    return acc;
+                                }, {}) && Object.entries(
+                                    Object.entries(syllabus).reduce((acc, [topicId, data]) => {
+                                        const unit = data.unit || "General Topics";
+                                        if (!acc[unit]) acc[unit] = [];
+                                        acc[unit].push({ id: topicId, ...data });
+                                        return acc;
+                                    }, {})
+                                ).map(([unit, topics]) => (
+                                    <section key={unit}>
+                                      <h2 style={{ fontFamily: F.display, fontSize: 18, fontWeight: 600, marginBottom: 10 }}>{unit}</h2>
+                                      <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
+                                        {topics.map((t) => (
+                                          <Card key={t.id} style={{ padding: "12px 16px" }}>
+                                            <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+                                              <span style={{ fontSize: 13.5, fontWeight: 500 }}>{t.id.replace(/_/g, " ").toUpperCase()}</span>
+                                              <span style={{ fontFamily: F.mono, fontSize: 11, color: C.faint }}>exam weight: {Math.round((t.syllabus_weight || t.weight || 0.1) * 100)}%</span>
+                                            </div>
+                                            {t.prerequisites && t.prerequisites.length > 0 && (
+                                              <div style={{ fontSize: 11, color: C.faint, marginTop: 4 }}>
+                                                Prerequisites: {t.prerequisites.join(", ").replace(/_/g, " ")}
+                                              </div>
+                                            )}
+                                          </Card>
+                                        ))}
+                                      </div>
+                                    </section>
+                                ))
+                              ) : (
+                                <div style={{ color: C.faint, fontSize: 14, fontFamily: F.hand, textAlign: "center" }}>No syllabus parsed. Paste curriculum above.</div>
+                              )}
+                            </div>
+                        )}
+
+                        {tab === "roadmap" && (
+                            <div style={{ display: "flex", flexDirection: "column", gap: 22 }}>
+                              <PageHeader eyebrow="PRIORITIZED STUDY CALENDAR" title="Roadmap schedule" />
+                              <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
+                                {roadmap.length > 0 ? (
+                                    roadmap.map((s, i) => (
+                                      <Card key={i} style={{ padding: "12px 16px", display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+                                        <div style={{ display: "flex", gap: 12 }}>
+                                          <span style={{ fontFamily: F.mono, fontSize: 12, color: C.faint, width: 50 }}>Day {s.day || s.priority_rank}</span>
+                                          <div>
+                                            <p style={{ fontSize: 13.5, margin: 0, fontWeight: 600 }}>{s.topic.replace(/_/g, " ").toUpperCase()}</p>
+                                            <p style={{ fontSize: 11.5, color: C.faint, margin: "2px 0 0" }}>
+                                                Reason: {s.reason} · Action: <span style={{ textTransform: "uppercase", color: C.blue, fontWeight: 700 }}>{s.recommended_action || "study"}</span> ({s.suggested_time_minutes || 30} mins)
+                                            </p>
+                                          </div>
+                                        </div>
+                                        <Tag tone={s.priority === "HIGH" || s.priority_rank === 1 ? "red" : s.priority === "MEDIUM" || s.priority_rank === 2 ? "amber" : "blue"}>
+                                            {s.priority || `Rank ${s.priority_rank}`}
+                                        </Tag>
+                                      </Card>
+                                    ))
+                                ) : (
+                                    <div style={{ color: C.faint, fontSize: 14, fontFamily: F.hand, textAlign: "center", padding: "20px 0" }}>
+                                        Loading Roadmap calendar... (Complete diagnostic test first)
+                                    </div>
+                                )}
+                              </div>
+                            </div>
+                        )}
+                    </div>
+                )}
+              </main>
+
+              <footer style={{ maxWidth: 980, margin: "0 auto", padding: "0 20px 44px", fontFamily: F.hand, fontSize: 18, color: C.faint, transform: "rotate(-0.6deg)" }}>
+                diagnose → teach → quiz → evaluate — memory fades, so we come back to it.
+              </footer>
+            </div>
+          );
+        }
+
+        function btnStyle(color) {
+          return {
+            fontFamily: F.mono,
+            fontSize: 12,
+            letterSpacing: "0.04em",
+            textTransform: "uppercase",
+            padding: "9px 18px",
+            border: `1.5px solid ${color}`,
+            borderRadius: 999,
+            color: "#FFFFFF",
+            background: color,
+            cursor: "pointer",
+          };
+        }
+
+        const container = document.getElementById('root');
+        const root = ReactDOM.createRoot(container);
+        root.render(<App />);
+    </script>
+</body>
+</html>

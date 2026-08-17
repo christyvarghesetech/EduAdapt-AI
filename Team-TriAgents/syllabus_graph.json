@@ -1,0 +1,134 @@
+{
+  "introduction_to_python": {
+    "unit": "Module 1: Python Fundamentals",
+    "syllabus_weight": 0.1,
+    "prerequisites": []
+  },
+  "variables_and_data_types": {
+    "unit": "Module 1: Python Fundamentals",
+    "syllabus_weight": 0.1,
+    "prerequisites": [
+      "introduction_to_python"
+    ]
+  },
+  "input_and_output": {
+    "unit": "Module 1: Python Fundamentals",
+    "syllabus_weight": 0.05,
+    "prerequisites": [
+      "variables_and_data_types"
+    ]
+  },
+  "operators": {
+    "unit": "Module 1: Python Fundamentals",
+    "syllabus_weight": 0.05,
+    "prerequisites": [
+      "variables_and_data_types"
+    ]
+  },
+  "conditional_statements": {
+    "unit": "Module 1: Python Fundamentals",
+    "syllabus_weight": 0.1,
+    "prerequisites": [
+      "variables_and_data_types",
+      "operators"
+    ]
+  },
+  "if_statement": {
+    "unit": "Module 1: Python Fundamentals",
+    "syllabus_weight": 0.05,
+    "prerequisites": [
+      "conditional_statements"
+    ]
+  },
+  "if_else_statement": {
+    "unit": "Module 1: Python Fundamentals",
+    "syllabus_weight": 0.05,
+    "prerequisites": [
+      "if_statement"
+    ]
+  },
+  "nested_if_statement": {
+    "unit": "Module 1: Python Fundamentals",
+    "syllabus_weight": 0.05,
+    "prerequisites": [
+      "if_else_statement"
+    ]
+  },
+  "loops": {
+    "unit": "Module 1: Python Fundamentals",
+    "syllabus_weight": 0.1,
+    "prerequisites": [
+      "variables_and_data_types",
+      "operators"
+    ]
+  },
+  "for_loop": {
+    "unit": "Module 1: Python Fundamentals",
+    "syllabus_weight": 0.05,
+    "prerequisites": [
+      "loops"
+    ]
+  },
+  "while_loop": {
+    "unit": "Module 1: Python Fundamentals",
+    "syllabus_weight": 0.05,
+    "prerequisites": [
+      "loops"
+    ]
+  },
+  "break_and_continue": {
+    "unit": "Module 1: Python Fundamentals",
+    "syllabus_weight": 0.05,
+    "prerequisites": [
+      "for_loop",
+      "while_loop"
+    ]
+  },
+  "lists": {
+    "unit": "Module 2: Data Structures",
+    "syllabus_weight": 0.1,
+    "prerequisites": [
+      "variables_and_data_types",
+      "loops"
+    ]
+  },
+  "tuples": {
+    "unit": "Module 2: Data Structures",
+    "syllabus_weight": 0.05,
+    "prerequisites": [
+      "variables_and_data_types"
+    ]
+  },
+  "sets": {
+    "unit": "Module 2: Data Structures",
+    "syllabus_weight": 0.05,
+    "prerequisites": [
+      "variables_and_data_types"
+    ]
+  },
+  "dictionaries": {
+    "unit": "Module 2: Data Structures",
+    "syllabus_weight": 0.1,
+    "prerequisites": [
+      "variables_and_data_types",
+      "lists"
+    ]
+  },
+  "list_comprehensions": {
+    "unit": "Module 2: Data Structures",
+    "syllabus_weight": 0.05,
+    "prerequisites": [
+      "lists"
+    ]
+  },
+  "nested_data_structures": {
+    "unit": "Module 2: Data Structures",
+    "syllabus_weight": 0.1,
+    "prerequisites": [
+      "lists",
+      "tuples",
+      "sets",
+      "dictionaries"
+    ]
+  }
+}

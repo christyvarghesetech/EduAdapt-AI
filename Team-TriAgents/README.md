@@ -1,158 +1,153 @@
+<p align="center">
+  <img src="assets/image.png" alt="Agentic AI Product Build Sprint Banner" width="100%">
+</p>
 
+# Agentic AI Product Build Sprint – Project Submissions
 
-# 🎓 EduAdapt AI
+This repository serves as the central archive for all team submissions developed during the event **Agentic AI Product Build Sprint**, organized by **DeltaCCE**.
 
-### An Agentic AI-Powered Personalized Learning Platform
+## 📥 Submission Guide
 
----
+### 1. Fork this Repository
 
-## 👥 Team
+Click the **Fork** button in the top-right corner of this repository.
 
-**Team Name:** TriAgents
+### 2. Clone Your Fork
 
-### Team Members
-Christy Varghese|Backend & Database|
-Dilna Ditto M|AI & Agent Development|
-Rohan C Roby|Frontend & UI/UX|
----
+```bash
+git clone https://github.com/<your-username>/<repository-name>.git
+cd <repository-name>
+```
 
-## 📌 Project Title
+### 3. Create Your Team Folder
 
-**EduAdapt AI – An Agentic AI Personalized Learning Platform**
+Create a folder using your **team name**.
 
----
-
-## ❗ Problem Statement
-
-Traditional online learning platforms generally provide the same learning content and learning paths to all students.
-
-However, every student has different:
-- Learning abilities
-- Knowledge levels
-- Strengths and weaknesses
-- Learning speeds
-- Areas that require additional practice
-
-When a student performs poorly in a particular topic, conventional systems may only display the score without understanding the underlying knowledge gap or automatically adapting the learning process.
-
-Students therefore need a system that can continuously understand their performance, identify knowledge gaps, provide personalized explanations, generate targeted assessments, and dynamically adapt their learning plan.
-
----
-
-## 💡 Our Solution
-
-**EduAdapt AI** is an Agentic AI-powered personalized learning platform that acts as an autonomous AI learning companion for students.
-
-Instead of using a single chatbot, EduAdapt AI uses multiple specialized AI agents that collaborate to understand the learner and continuously adapt the learning experience.
-
-The system follows a continuous learning loop:
-
-**Assess → Analyze → Teach → Practice → Evaluate → Adapt**
-
-The platform can:
-
-1. Assess the student's current knowledge.
-2. Identify weak and strong areas.
-3. Provide personalized explanations.
-4. Generate topic-specific quizzes.
-5. Analyze quiz performance.
-6. Track learning progress.
-7. Automatically update the student's learning plan.
-
----
-
-## ⭐ Key Features
-
-### 1. 📝 Initial Assessment
-The platform conducts an assessment to understand the student's current knowledge level.
-
-### 2. 🧠 Knowledge Gap Detection
-The system analyzes the student's answers and identifies topics where the student needs improvement.
-
-### 3. 👨‍🏫 AI Personalized Tutor
-The Tutor Agent explains difficult concepts according to the student's knowledge level and learning needs.
-
-### 4. ❓ Adaptive Quiz Generation
-The Quiz Agent generates questions based on the student's weak areas.
-
-### 5. 📊 Performance Analysis
-The system tracks quiz scores and learning performance over time.
-
-### 6. 📅 Personalized Study Plan
-The Planner Agent creates and updates a study plan based on the student's progress.
-
-### 7. 🔄 Continuous Adaptation
-The learning path changes automatically as the student's performance changes.
-
-### 8. 💬 AI Learning Assistant
-Students can interact with the AI to ask questions and receive explanations related to their learning topics.
-
----
-
-# 🤖 Agent Workflow
+Example:
 
 ```text
-                    ┌─────────────────┐
-                    │     Student     │
-                    └────────┬────────┘
-                             │
-                             ▼
-                  ┌─────────────────────┐
-                  │  Learning Manager   │
-                  │       Agent         │
-                  └─────────┬───────────┘
-                            │
-             ┌──────────────┼──────────────┐
-             │              │              │
-             ▼              ▼              ▼
-      ┌────────────┐ ┌────────────┐ ┌────────────┐
-      │ Assessment │ │   Tutor    │ │    Quiz    │
-      │   Agent    │ │   Agent    │ │   Agent    │
-      └──────┬─────┘ └──────┬─────┘ └──────┬─────┘
-             │              │              │
-             └──────────────┼──────────────┘
-                            │
-                            ▼
-                  ┌─────────────────────┐
-                  │ Progress & Planning │
-                  │       Agent         │
-                  └─────────┬───────────┘
-                            │
-                            ▼
-                  ┌─────────────────────┐
-                  │ Personalized Study  │
-                  │       Plan          │
-                  └─────────┬───────────┘
-                            │
-                            ▼
-                     ┌────────────┐
-                     │  Student   │
-                     └────────────┘
-## 🛠️ Tech Stack
+Team-Alpha/
+```
 
-### Frontend
-- React.js
-- HTML5
-- CSS3
-- JavaScript
+> **Note:** Use only letters (`A-Z`), numbers (`0-9`), hyphens (`-`), or underscores (`_`) in the folder name.
 
-### Backend
-- Python
-- FastAPI
+### 4. Create a `README.md`
 
-### AI / LLM
-- LLM API
-- Prompt Engineering
-- RAG
+Inside your team folder, create a `README.md` containing at least the following information:
 
-### Agent Framework
-- LangGraph
+- Project Title
+- Team Name
+- Team Members
+- Problem Statement
+- Solution
+- Features
+- Agent Workflow / Flowchart
+- Agent Architecture
+- Tech Stack
+     - Frontend
+     - Backend
+     - AI / LLM
+     - Agent Framework
+     - Tools / APIs
+     - Database
+- Tech Stack 
+- Setup / How to Run
+- Repository Link *(Optional)*
+- Demo Link *(Optional)*
 
-### Tools / APIs
-- LLM API
-- REST APIs
+### 5. Add Your Project Files
 
-### Database
-- SQLite
-# Database
-- SQLite
+Place **all project files** inside your team folder.
+
+Example:
+
+```text
+Team-Alpha/
+├── README.md
+├── frontend/
+├── backend/
+├── assets/
+├── docs/
+├── presentation.pdf
+└── ...
+```
+
+### 6. Commit Your Changes
+
+```bash
+git add .
+git commit -m "Add Team Alpha project"
+```
+
+### 7. Push to Your Fork
+
+```bash
+git push origin main
+```
+
+### 8. Open a Pull Request
+
+Navigate back to your fork and click **Compare & Pull Request**.
+
+**Pull Request Title**
+
+```text
+Add submission: Team Alpha
+```
+
+**Pull Request Description**
+
+```text
+Team Name:
+Project Title:
+
+Submitted for the DeltaCCE Agentic AI Product Build Sprint.
+```
+
+---
+
+## 📁 Expected Repository Structure
+
+```text
+Team-Alpha/
+├── README.md
+├── frontend/
+├── backend/
+├── assets/
+├── docs/
+├── presentation.pdf
+└── ...
+```
+
+## ✅ Before Opening Your Pull Request
+
+- [ ] Your team folder is correctly named.
+- [ ] A `README.md` is included.
+- [ ] All project source code has been added.
+- [ ] Assets, documentation, and presentation files (if any) are included.
+- [ ] Your project can be built or run (where applicable).
+- [ ] Your Pull Request follows the naming convention above.
+
+## 📌 Submission Notes
+
+- Only **one Pull Request per team**.
+- Submit the **latest stable version** of your project.
+- Do **not** include unnecessary files such as:
+  - `node_modules/`
+  - Python virtual environments (`venv/`, `.venv/`)
+  - Build outputs (`dist/`, `build/`, `out/`)
+  - Cache files
+- If your project requires API keys or credentials, **do not commit them**. Document the required environment variables in your `README.md` instead.
+- If your project requires additional setup, include clear setup instructions in your `README.md`.
+
+## 🤝 Need Help?
+
+If you encounter any issues while submitting your project, please contact the **DeltaCCE** organizing team before the submission deadline.
+
+---
+
+Thank you for participating in the **Agentic AI Product Build Sprint**.
+
+We appreciate your contribution and look forward to reviewing your projects.
+
+**Happy Building! 🚀**

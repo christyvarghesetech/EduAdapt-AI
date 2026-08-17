@@ -1,0 +1,12 @@
+groq
+crewai
+litellm
+jupyterlab
+ipykernel
+fastapi
+uvicorn
+sqlalchemy
+pydantic
+python-dotenv
+python-multipart
+requests
